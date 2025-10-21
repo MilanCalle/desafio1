@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Matricial Dinámica - CG y SOR</title>
+    <style>
+        /* Estilos CSS (sin cambios, se mantienen igual que la versión anterior) */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Calibri', Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        .excel-container { max-width: 1400px; margin: 0 auto; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden; }
+        .excel-header { background: linear-gradient(135deg, #217346, #2d8659); color: white; padding: 20px; }
+        .excel-header h1 { font-size: 24px; margin-bottom: 5px; }
+        .excel-header p { font-size: 14px; opacity: 0.9; }
+        .toolbar { background: #f8f9fa; padding: 10px 20px; border-bottom: 2px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .toolbar button { padding: 8px 16px; background: #217346; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.3s; }
+        .toolbar button:hover { background: #1a5a37; }
+        .toolbar button.secondary { background: #0078d4; }
+        .toolbar button.secondary:hover { background: #005a9e; }
+        .toolbar button.tertiary { background: #6c757d; }
+        .toolbar button.tertiary:hover { background: #5a6268; }
+        .formula-bar { background: white; padding: 15px 20px; border-bottom: 2px solid #ddd; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .formula-bar label { font-weight: bold; color: #333; }
+        .formula-bar input { flex: 1; min-width: 80px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Courier New', monospace; }
+        .size-control { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+        .worksheet-tabs { background: #e8e8e8; padding: 10px 20px; display: flex; gap: 5px; }
+        .tab { padding: 8px 20px; background: white; border: 1px solid #ccc; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; font-weight: 600; color: #333; }
+        .tab.active { background: #217346; color: white; border-color: #217346; }
+        .worksheet { padding: 20px; display: none; overflow-x: auto;}
+        .worksheet.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; min-width: 600px; }
+        th, td { border: 1px solid #d0d0d0; padding: 10px; text-align: center; }
+        th { background: #217346; color: white; font-weight: 600; position: sticky; top: 0; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        tr:hover { background: #e8f5e9; }
+        .input-cell input, .result-cell input { width: 100%; min-width: 60px; padding: 8px; text-align: center; border: 2px solid transparent; border-radius: 4px; background-color: transparent; transition: border-color 0.3s, background-color 0.3s; }
+        .input-cell input { background-color: #fff3cd; }
+        .result-cell input { background-color: #d4edda; }
+        .input-cell input:focus, .result-cell input:focus { border-color: #217346; background-color: white; }
+        .input-cell input.error, .result-cell input.error { background-color: #f8d7da; border-color: #721c24; }
+        .result-cell { background: #d4edda; font-weight: bold; color: #155724; }
+        .error-cell { background: #f8d7da; color: #721c24; }
+        .section-title { background: #217346; color: white; padding: 10px 15px; margin: 20px 0 10px 0; border-radius: 4px; font-weight: bold; }
+        .info-box { background: #e7f3ff; border-left: 4px solid #0078d4; padding: 15px; margin: 15px 0; border-radius: 4px; }
+        .info-box h3 { color: #0078d4; margin-bottom: 10px; }
+        .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .comparison-card { background: white; border: 2px solid #217346; border-radius: 8px; padding: 20px; }
+        .comparison-card h3 { color: #217346; margin-bottom: 15px; }
+        .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .stat:last-child { border-bottom: none; }
+        .stat-label { font-weight: 600; color: #555; }
+        .stat-value { font-weight: bold; color: #217346; font-size: 18px; }
+        @media print { .toolbar, .worksheet-tabs, .formula-bar { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="excel-container">
+        <div class="excel-header">
+            <h1>📊 Calculadora Matricial Dinámica - CG y SOR</h1>
+            <p>Resuelve sistemas de ecuaciones lineales de tamaño N×N.</p>
+        </div>
+        
+        <div class="toolbar">
+            <button onclick="calcularMetodos()">▶️ Calcular Métodos</button>
+            <button onclick="restaurarEjemplo()" class="tertiary">🔄 Restaurar Ejemplo 5x5</button>
+            <button onclick="limpiarResultados()" class="secondary">🧹 Limpiar Resultados</button>
+            <a href="./grafica.html" class="secondary">📊 Ver gráficos</a>
+             <div class="size-control">
+                <label for="matrixSizeInput" style="font-weight: bold;">Tamaño N:</label>
+                <input type="number" id="matrixSizeInput" value="5" min="2" max="20" style="width: 70px; padding: 8px;">
+                <button onclick="cambiarTamanoMatriz()" class="secondary">Aplicar Tamaño</button>
+            </div>
+        </div>
+        
+        <div class="formula-bar">
+            <label>ω (SOR):</label>
+            <input type="number" id="omegaInput" value="1.25" step="0.05" min="0" max="2">
+            <label>Tolerancia:</label>
+            <input type="number" id="tolInput" value="1e-6" step="1e-7" min="0">
+            <label>Iteraciones Máx:</label>
+            <input type="number" id="maxIterInput" value="100" step="1" min="1">
+        </div>
+        
+        <div class="worksheet-tabs">
+            <div class="tab active" onclick="cambiarPestana(0)">📋 Sistema de Ecuaciones</div>
+            <div class="tab" onclick="cambiarPestana(1)">🔷 Método CG</div>
+            <div class="tab" onclick="cambiarPestana(2)">🔶 Método SOR</div>
+            <div class="tab" onclick="cambiarPestana(3)">📊 Comparación</div>
+        </div>
+        
+        <div class="worksheet active" id="worksheet0">
+            <div class="section-title">📐 Definición del Sistema: Ax = b (Editable)</div>
+            <table id="tablaSistema">
+                <thead id="tablaSistemaHead"></thead>
+                <tbody id="tablaSistemaBody"></tbody>
+            </table>
+            <div class="section-title">✓ Propiedades de la Matriz (Dinámico)</div>
+            <table>
+                <thead><tr><th>Propiedad</th><th>Valor/Estado</th><th>Importancia</th></tr></thead>
+                <tbody>
+                    <tr><td>Dimensión</td><td id="propDimension" class="result-cell">-</td><td>Tamaño del sistema a resolver.</td></tr>
+                    <tr><td>Simétrica</td><td id="propSimetrica" class="result-cell">-</td><td>Requisito para el método CG.</td></tr>
+                    <tr><td>Diagonal Dominante</td><td id="propDiagDom" class="result-cell">-</td><td>Garantiza convergencia de SOR.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="worksheet" id="worksheet1">
+             <div class="section-title">🔷 Método del Gradiente Conjugado (CG)</div>
+             <table id="tablaCG">
+                 <thead id="tablaCGHead"></thead>
+                 <tbody id="cuerpoTablaCG"></tbody>
+             </table>
+        </div>
+
+        <div class="worksheet" id="worksheet2">
+             <div class="section-title">🔶 Método de Sobrerelajación Sucesiva (SOR)</div>
+             <table id="tablaSOR">
+                <thead id="tablaSORHead"></thead>
+                <tbody id="cuerpoTablaSOR"></tbody>
+             </table>
+        </div>
+
+        <div class="worksheet" id="worksheet3">
+             <div class="section-title">📊 Análisis Comparativo</div>
+             <div id="comparison-container" class="comparison-grid"></div>
+             <div class="section-title">🏆 Comparación de Rendimiento</div>
+             <table id="tablaComp">
+                 <thead><tr><th>Métrica</th><th>CG</th><th>SOR</th><th>Ganador</th></tr></thead>
+                 <tbody id="tablaComparacionBody"></tbody>
+             </table>
+             <div class="section-title">✅ Verificación de Resultados (usando solución de CG)</div>
+             <div id="verificacion" class="info-box"><p>Ejecute el cálculo para ver la verificación.</p></div>
+             <div class="section-title">📝 Conclusiones</div>
+             <div id="conclusiones" class="info-box"><p>Ejecute el cálculo para ver las conclusiones.</p></div>
+        </div>
+    </div>
+    
+    <script>
+        let n = 5; // Tamaño inicial
+        let resultadoCG = null;
+        let resultadoSOR = null;
+        
+        const ejemploA_5x5 = [
+            [4, -1, -1, 0, 0], [-1, 4, 0, -1, 0], [-1, 0, 4, 0, -1],
+            [0, -1, 0, 4, -1], [0, 0, -1, -1, 4]
+        ];
+        const ejemploB_5x5 = [8, 6, 7, 5, 9];
+
+        // --- INICIALIZACIÓN ---
+        document.addEventListener('DOMContentLoaded', () => {
+            cambiarTamanoMatriz(false); // Inicializa con el tamaño por defecto
+        });
+
+        // --- LÓGICA DE LA INTERFAZ (UI) ---
+        function cambiarTamanoMatriz(showAlert = true) {
+            const newSizeInput = document.getElementById('matrixSizeInput');
+            const newSize = parseInt(newSizeInput.value);
+
+            if (isNaN(newSize) || newSize < 2 || newSize > 20) {
+                alert("Por favor, introduce un tamaño entre 2 y 20.");
+                newSizeInput.value = n; // Revertir al tamaño válido anterior
+                return;
+            }
+            n = newSize;
+            generarTablas();
+            limpiarResultados();
+            if (showAlert) {
+                alert(`La matriz ha sido redimensionada a ${n}x${n}. Introduce los nuevos valores.`);
+            }
+        }
+
+        function generarTablas() {
+            // Tabla de Sistema
+            const headSistema = document.getElementById('tablaSistemaHead');
+            const bodySistema = document.getElementById('tablaSistemaBody');
+            let headHTML = '<tr><th>Ec.</th>';
+            for (let j = 0; j < n; j++) headHTML += `<th>p<sub>${j+1}</sub></th>`;
+            headHTML += '<th></th><th>b</th><th>Ecuación Completa</th></tr>';
+            headSistema.innerHTML = headHTML;
+            
+            let bodyHTML = '';
+            for (let i = 0; i < n; i++) {
+                bodyHTML += `<tr><td><strong>${i + 1}</strong></td>`;
+                for (let j = 0; j < n; j++) {
+                    bodyHTML += `<td class="input-cell"><input type="number" id="A-${i}-${j}" oninput="actualizarEcuacion(${i})"></td>`;
+                }
+                bodyHTML += `<td><strong>=</strong></td>`;
+                bodyHTML += `<td class="result-cell"><input type="number" id="b-${i}" oninput="actualizarEcuacion(${i})"></td>`;
+                bodyHTML += `<td id="eq-str-${i}" style="text-align: left; font-family: monospace; white-space: nowrap;"></td></tr>`;
+            }
+            bodySistema.innerHTML = bodyHTML;
+
+            // Headers para tablas de resultados
+            const headCG = document.getElementById('tablaCGHead');
+            const headSOR = document.getElementById('tablaSORHead');
+            let headResultadosHTML = '<tr><th>Iter</th>';
+            for (let j = 0; j < n; j++) headResultadosHTML += `<th>p<sub>${j+1}</sub></th>`;
+            headResultadosHTML += '<th>Error</th><th>Estado</th></tr>';
+            headCG.innerHTML = headResultadosHTML;
+            headSOR.innerHTML = headResultadosHTML;
+
+            document.getElementById('propDimension').textContent = `${n} × ${n}`;
+        }
+
+        function restaurarEjemplo() {
+            if (n !== 5) {
+                document.getElementById('matrixSizeInput').value = 5;
+                cambiarTamanoMatriz(false);
+            }
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 5; j++) {
+                    document.getElementById(`A-${i}-${j}`).value = ejemploA_5x5[i][j];
+                }
+                document.getElementById(`b-${i}`).value = ejemploB_5x5[i];
+                actualizarEcuacion(i);
+            }
+            limpiarResultados();
+            actualizarPropiedadesMatriz(ejemploA_5x5);
+        }
+
+        function actualizarEcuacion(rowIndex) {
+            let eqStr = "";
+            for (let j = 0; j < n; j++) {
+                const val = parseFloat(document.getElementById(`A-${rowIndex}-${j}`).value) || 0;
+                if (val === 0) continue;
+                let sign = val > 0 ? ' + ' : ' - ';
+                let absVal = Math.abs(val);
+                let term = (absVal === 1) ? `p${j+1}` : `${absVal}p${j+1}`;
+                eqStr += (eqStr === "" && val > 0) ? term : (eqStr === "" && val < 0 ? `-${term}` : `${sign}${term}`);
+            }
+            const bVal = document.getElementById(`b-${rowIndex}`).value || 0;
+            document.getElementById(`eq-str-${rowIndex}`).textContent = `${eqStr || "0"} = ${bVal}`;
+        }
+        
+        function cambiarPestana(index) {
+            document.querySelectorAll('.tab').forEach((tab, i) => tab.classList.toggle('active', i === index));
+            document.querySelectorAll('.worksheet').forEach((ws, i) => ws.classList.toggle('active', i === index));
+        }
+
+        // --- LECTURA Y VALIDACIÓN DE DATOS ---
+        function leerSistemaDesdeUI() {
+            const A = Array.from({ length: n }, () => Array(n).fill(0));
+            const b = Array(n).fill(0);
+            let isValid = true;
+            
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    const input = document.getElementById(`A-${i}-${j}`);
+                    const value = parseFloat(input.value);
+                    if (isNaN(value)) {
+                        isValid = false;
+                        input.classList.add('error');
+                    } else {
+                        input.classList.remove('error');
+                        A[i][j] = value;
+                    }
+                }
+                const b_input = document.getElementById(`b-${i}`);
+                const b_value = parseFloat(b_input.value);
+                 if (isNaN(b_value)) {
+                    isValid = false;
+                    b_input.classList.add('error');
+                } else {
+                    b_input.classList.remove('error');
+                    b[i] = b_value;
+                }
+            }
+
+            if (!isValid) {
+                alert("Error: Por favor, ingrese valores numéricos válidos en todas las celdas.");
+                return null;
+            }
+            return { A, b };
+        }
+        
+        // --- ANÁLISIS DE LA MATRIZ ---
+        function actualizarPropiedadesMatriz(A) {
+            const esSim = esSimetrica(A);
+            const esDiag = esDiagonalDominante(A);
+
+            const celdaSim = document.getElementById('propSimetrica');
+            celdaSim.textContent = esSim ? '✓ SÍ' : '✗ NO';
+            celdaSim.className = esSim ? 'result-cell' : 'error-cell';
+
+            const celdaDiag = document.getElementById('propDiagDom');
+            celdaDiag.textContent = esDiag ? '✓ SÍ' : '✗ NO';
+            celdaDiag.className = esDiag ? 'result-cell' : 'error-cell';
+        }
+
+        const esSimetrica = (A) => {
+            for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (A[i][j] !== A[j][i]) return false;
+            return true;
+        };
+
+        const esDiagonalDominante = (A) => {
+            for (let i = 0; i < n; i++) {
+                const diag = Math.abs(A[i][i]);
+                const sum = A[i].reduce((acc, val, j) => acc + (i === j ? 0 : Math.abs(val)), 0);
+                if (diag < sum) return false;
+            }
+            return true;
+        };
+
+        // --- FUNCIONES MATEMÁTICAS ---
+        const matVecMult = (mat, vec) => mat.map(row => row.reduce((sum, val, i) => sum + val * vec[i], 0));
+        const dotProduct = (v1, v2) => v1.reduce((sum, val, i) => sum + val * v2[i], 0);
+        const norm = (vec) => Math.sqrt(dotProduct(vec, vec));
+        const vecSubtract = (v1, v2) => v1.map((val, i) => val - v2[i]);
+        const vecAdd = (v1, alpha, v2) => v1.map((val, i) => val + alpha * v2[i]);
+
+        // --- MÉTODOS NUMÉRICOS (Sin cambios en su lógica interna) ---
+        function gradienteConjugado(A, b) {
+            if (!esSimetrica(A)) alert("Advertencia: La matriz no es simétrica. CG podría no converger.");
+            let x = new Array(n).fill(0);
+            let r = vecSubtract(b, matVecMult(A, x));
+            let p = [...r];
+            let rsold = dotProduct(r, r);
+            const tolerance = parseFloat(document.getElementById('tolInput').value);
+            const maxIter = parseInt(document.getElementById('maxIterInput').value);
+            const history = [];
+
+            for (let iter = 0; iter < maxIter; iter++) {
+                const Ap = matVecMult(A, p);
+                const pAp = dotProduct(p, Ap);
+                if (Math.abs(pAp) < 1e-10) { // Evitar división por cero
+                     return { solution: x, iterations: iter, error: Math.sqrt(rsold), history, converged: false, errorMsg: "División por cero inminente."};
+                }
+                const alpha = rsold / pAp;
+                x = vecAdd(x, alpha, p);
+                r = vecAdd(r, -alpha, Ap);
+                const rsnew = dotProduct(r, r);
+                const error = Math.sqrt(rsnew);
+                history.push({ iteration: iter + 1, x: [...x], error });
+
+                if (error < tolerance) return { solution: x, iterations: iter + 1, error, history, converged: true };
+                p = vecAdd(r, rsnew / rsold, p);
+                rsold = rsnew;
+            }
+            return { solution: x, iterations: maxIter, error: Math.sqrt(rsold), history, converged: false };
+        }
+
+        function sor(A, b) {
+            const omega = parseFloat(document.getElementById('omegaInput').value);
+            let x = new Array(n).fill(0);
+            const tolerance = parseFloat(document.getElementById('tolInput').value);
+            const maxIter = parseInt(document.getElementById('maxIterInput').value);
+            const history = [];
+
+            for (let iter = 0; iter < maxIter; iter++) {
+                let xOld = [...x];
+                for (let i = 0; i < n; i++) {
+                    const diag = A[i][i];
+                    if (Math.abs(diag) < 1e-10) return { solution: x, iterations: iter, error: Infinity, history, converged: false, errorMsg: `Elemento diagonal A[${i}][${i}] es cero.` };
+                    const sum1 = A[i].slice(0, i).reduce((acc, val, j) => acc + val * x[j], 0);
+                    const sum2 = A[i].slice(i + 1).reduce((acc, val, j) => acc + val * xOld[j + i + 1], 0);
+                    x[i] = (1 - omega) * xOld[i] + (omega / diag) * (b[i] - sum1 - sum2);
+                }
+                const error = norm(vecSubtract(x, xOld));
+                history.push({ iteration: iter + 1, x: [...x], error });
+                if (error < tolerance) return { solution: x, iterations: iter + 1, error, history, converged: true };
+            }
+            return { solution: x, iterations: maxIter, error: norm(vecSubtract(x,x)), history, converged: false };
+        }
+
+        // --- CÁLCULO Y VISUALIZACIÓN ---
+        function calcularMetodos() {
+            const sistema = leerSistemaDesdeUI();
+            if (!sistema) return;
+            actualizarPropiedadesMatriz(sistema.A);
+            resultadoCG = gradienteConjugado(sistema.A, sistema.b);
+            resultadoSOR = sor(sistema.A, sistema.b);
+            mostrarResultados('CG', resultadoCG);
+            mostrarResultados('SOR', resultadoSOR);
+            mostrarComparacion(sistema.A, sistema.b);
+        }
+
+        function mostrarResultados(metodo, resultado) {
+            const tbody = document.getElementById(`cuerpoTabla${metodo}`);
+            tbody.innerHTML = '';
+            
+            if (resultado.errorMsg) {
+                tbody.innerHTML = `<tr><td colspan="${n+3}" class="error-cell">Error: ${resultado.errorMsg}</td></tr>`;
+                return;
+            }
+
+            resultado.history.forEach(item => {
+                const converged = item.iteration === resultado.iterations && resultado.converged;
+                let rowHTML = `<tr><td>${item.iteration}</td>`;
+                item.x.forEach(val => rowHTML += `<td>${val.toFixed(6)}</td>`);
+                rowHTML += `<td class="${converged ? 'result-cell':''}">${item.error.toExponential(4)}</td>`;
+                rowHTML += `<td class="${converged ? 'result-cell':''}">${converged ? '✓ Convergió' : '→ Iterando'}</td></tr>`;
+                tbody.innerHTML += rowHTML;
+            });
+        }
+        
+        function mostrarComparacion(A, b) {
+            const compContainer = document.getElementById('comparison-container');
+            let cgCard = '<h3>🔷 Solución Gradiente Conjugado</h3><div class="stat"><span class="stat-label">Iteraciones:</span><span class="stat-value">' + resultadoCG.iterations + '</span></div>';
+            let sorCard = '<h3>🔶 Solución SOR</h3><div class="stat"><span class="stat-label">Iteraciones:</span><span class="stat-value">' + resultadoSOR.iterations + '</span></div>';
+            for(let i=0; i<n; i++) {
+                cgCard += `<div class="stat"><span class="stat-label">p<sub>${i+1}</sub>:</span><span class="stat-value">${resultadoCG.solution[i].toFixed(6)}</span></div>`;
+                sorCard += `<div class="stat"><span class="stat-label">p<sub>${i+1}</sub>:</span><span class="stat-value">${resultadoSOR.solution[i].toFixed(6)}</span></div>`;
+            }
+            compContainer.innerHTML = `<div class="comparison-card">${cgCard}</div><div class="comparison-card">${sorCard}</div>`;
+            
+            const tablaCompBody = document.getElementById('tablaComparacionBody');
+            const ganadorIter = resultadoCG.iterations < resultadoSOR.iterations ? '🔷 CG' : (resultadoSOR.iterations < resultadoCG.iterations ? '🔶 SOR' : 'Empate');
+            tablaCompBody.innerHTML = `
+                <tr><td>Iteraciones</td><td>${resultadoCG.iterations}</td><td>${resultadoSOR.iterations}</td><td>${ganadorIter}</td></tr>
+                <tr><td>Error Final</td><td>${resultadoCG.error.toExponential(4)}</td><td>${resultadoSOR.error.toExponential(4)}</td><td>${resultadoCG.error < resultadoSOR.error ? '🔷 CG' : '🔶 SOR'}</td></tr>
+            `;
+
+            let verifHTML = '<table style="width:100%; margin-top:10px;"><tr><th>Ec.</th><th>Ax (calculado)</th><th>b (original)</th><th>Diferencia</th></tr>';
+            const Ax = matVecMult(A, resultadoCG.solution);
+            for (let i = 0; i < n; i++) {
+                const diff = Math.abs(Ax[i] - b[i]);
+                verifHTML += `<tr><td>${i+1}</td><td>${Ax[i].toFixed(6)}</td><td>${b[i]}</td><td style="color: ${diff < 1e-4 ? 'green' : 'red'}">${diff.toExponential(2)}</td></tr>`;
+            }
+            document.getElementById('verificacion').innerHTML = verifHTML + '</table>';
+
+            document.getElementById('conclusiones').innerHTML = `
+                <p><strong>Convergencia:</strong> CG ${resultadoCG.converged ? 'convergió' : 'NO convergió'} en <strong>${resultadoCG.iterations}</strong> iteraciones. SOR ${resultadoSOR.converged ? 'convergió' : 'NO convergió'} en <strong>${resultadoSOR.iterations}</strong> iteraciones.</p>
+                <p><strong>Recomendación:</strong> Para matrices simétricas, <strong>CG</strong> es generalmente superior. Si no, <strong>SOR</strong> es una alternativa, pero su rendimiento es sensible al valor de ω y a si la matriz es diagonal dominante.</p>`;
+        }
+
+        function limpiarResultados() {
+            resultadoCG = null;
+            resultadoSOR = null;
+            const placeholder = `<tr><td colspan="${n+3}" style="text-align: center; color: #999;">Presione "Calcular" para ejecutar</td></tr>`;
+            document.getElementById('cuerpoTablaCG').innerHTML = placeholder;
+            document.getElementById('cuerpoTablaSOR').innerHTML = placeholder;
+            document.getElementById('tablaComparacionBody').innerHTML = '';
+            document.getElementById('verificacion').innerHTML = '<p>Ejecute el cálculo para ver la verificación.</p>';
+            document.getElementById('conclusiones').innerHTML = '<p>Ejecute el cálculo para ver las conclusiones.</p>';
+            document.getElementById('comparison-container').innerHTML = '';
+            document.getElementById('propSimetrica').textContent = '-';
+            document.getElementById('propDiagDom').textContent = '-';
+            document.getElementById('propSimetrica').className = 'result-cell';
+            document.getElementById('propDiagDom').className = 'result-cell';
+        }
+    </script>
+</body>
+</html>

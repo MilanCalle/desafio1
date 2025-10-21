@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador 3D Interactivo - Sistemas de Ecuaciones</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
+        .header { background: #fff; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+        .header h1 { color: #1e3a8a; }
+        .container { display: flex; height: calc(100vh - 90px); }
+        .sidebar { width: 400px; background: #fff; padding: 20px; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        .sidebar h2 { color: #1e3a8a; margin-bottom: 15px; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; }
+        #canvas-container { flex: 1; position: relative; background: #1a1a2e; }
+        .info-overlay { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 280px; }
+        .info-overlay h3 { color: #1e3a8a; margin-bottom: 10px; }
+        .info-item { margin: 5px 0; color: #333; }
+        .controls, .matrix-editor { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        label { font-weight: bold; color: #555; margin-bottom: 5px; display: block; }
+        button { width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; margin: 5px 0; transition: background 0.3s; }
+        button:hover { background: #2563eb; }
+        button.secondary { background: #64748b; }
+        button.secondary:hover { background: #475569; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { text-align: center; padding: 4px; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; text-align: center; background: #fff; }
+        input[type="number"].matrix-a { background: #e0f2fe; }
+        input[type="number"].vector-b { background: #d1fae5; }
+        input[type="range"] { width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Visualizador 3D de Sistemas de Ecuaciones Lineales</h1>
+    </div>
+    <div class="container">
+        <div class="sidebar">
+            <h2>📐 Editor del Sistema</h2>
+            <div class="matrix-editor">
+                <label>Tamaño (N×N):</label>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="number" id="matrixSizeInput" value="3" min="2" max="5" style="flex: 1;">
+                    <button id="applySizeBtn" style="flex: 2;">Aplicar Tamaño</button>
+                </div>
+                <p id="info-3d" style="font-size: 0.9em; text-align: center; color: #1e3a8a; font-weight: bold;">La visualización 3D solo está disponible para N=3.</p>
+                <table id="matrix-table"></table>
+            </div>
+
+            <button id="visualizeBtn">🚀 Visualizar Sistema</button>
+            <button id="restoreBtn" class="secondary">🔄 Restaurar Ejemplo 3x3</button>
+
+            <h2>🎮 Controles de Escena</h2>
+            <div class="controls">
+                <label>Rotación Automática:</label>
+                <button id="toggleRotation">▶️ Iniciar Rotación</button>
+                <label style="margin-top: 15px;">Zoom:</label>
+                <input type="range" id="zoomSlider" min="5" max="50" value="25">
+                <button class="secondary" id="resetView" style="margin-top: 15px;">🔄 Restablecer Vista</button>
+            </div>
+        </div>
+        <div id="canvas-container">
+            <div class="info-overlay">
+                <h3>🎯 Solución del Sistema (x, y, z)</h3>
+                <div id="solution-display">
+                    <p>Presiona "Visualizar" para resolver.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let autoRotate = false;
+        let n = 3; // Tamaño inicial
+        let planeHelpers = [];
+        let solutionPoint = null;
+
+        // --- INICIALIZACIÓN ---
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 15, 5);
+            scene.add(directionalLight);
+            
+            const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x333333);
+            scene.add(gridHelper);
+            
+            resetView();
+            setupMouseControls();
+            animate();
+            
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        // --- LÓGICA DE LA INTERFAZ (UI) ---
+        function generateMatrixTable() {
+            const table = document.getElementById('matrix-table');
+            table.innerHTML = '';
+            let headerHTML = '<thead><tr>';
+            for (let i = 1; i <= n; i++) headerHTML += `<th>x${i}</th>`;
+            headerHTML += '<th></th><th>b</th></tr></thead>';
+            table.innerHTML = headerHTML;
+
+            let bodyHTML = '<tbody>';
+            for (let i = 0; i < n; i++) {
+                bodyHTML += '<tr>';
+                for (let j = 0; j < n; j++) {
+                    bodyHTML += `<td><input type="number" class="matrix-a" id="A-${i}-${j}" value="0"></td>`;
+                }
+                bodyHTML += '<td>=</td>';
+                bodyHTML += `<td><input type="number" class="vector-b" id="b-${i}" value="0"></td>`;
+                bodyHTML += '</tr>';
+            }
+            bodyHTML += '</tbody>';
+            table.innerHTML += bodyHTML;
+
+            document.getElementById('info-3d').style.display = (n === 3) ? 'block' : 'none';
+        }
+
+        function restoreExample3x3() {
+            if (n !== 3) {
+                document.getElementById('matrixSizeInput').value = 3;
+                applySizeChange();
+            }
+            const exampleA = [[2, 1, -1], [-3, -1, 2], [-2, 1, 2]];
+            const exampleB = [8, -11, -3];
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    document.getElementById(`A-${i}-${j}`).value = exampleA[i][j];
+                }
+                document.getElementById(`b-${i}`).value = exampleB[i];
+            }
+        }
+        
+        function applySizeChange() {
+             const newSize = parseInt(document.getElementById('matrixSizeInput').value);
+             if (isNaN(newSize) || newSize < 2 || newSize > 5) {
+                 alert("Por favor, introduce un tamaño entre 2 y 5.");
+                 document.getElementById('matrixSizeInput').value = n;
+                 return;
+             }
+             n = newSize;
+             generateMatrixTable();
+             clearScene();
+        }
+
+        function readSystemFromUI() {
+            const A = Array.from({ length: n }, () => Array(n).fill(0));
+            const b = Array(n).fill(0);
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    A[i][j] = parseFloat(document.getElementById(`A-${i}-${j}`).value) || 0;
+                }
+                b[i] = parseFloat(document.getElementById(`b-${i}`).value) || 0;
+            }
+            return { A, b };
+        }
+
+        // --- LÓGICA MATEMÁTICA ---
+        function solve3x3(A, b) {
+            const det = (m) => m[0][0]*(m[1][1]*m[2][2]-m[2][1]*m[1][2]) - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+            
+            const detA = det(A);
+            if (Math.abs(detA) < 1e-9) {
+                return null; // Sin solución única
+            }
+
+            const Ax = [[b[0], A[0][1], A[0][2]], [b[1], A[1][1], A[1][2]], [b[2], A[2][1], A[2][2]]];
+            const Ay = [[A[0][0], b[0], A[0][2]], [A[1][0], b[1], A[1][2]], [A[2][0], b[2], A[2][2]]];
+            const Az = [[A[0][0], A[0][1], b[0]], [A[1][0], A[1][1], b[1]], [A[2][0], A[2][1], b[2]]];
+
+            return { x: det(Ax) / detA, y: det(Ay) / detA, z: det(Az) / detA };
+        }
+
+        // --- LÓGICA DE VISUALIZACIÓN 3D ---
+        function clearScene() {
+            planeHelpers.forEach(p => scene.remove(p));
+            planeHelpers = [];
+            if (solutionPoint) scene.remove(solutionPoint);
+            solutionPoint = null;
+        }
+
+        function drawSystem(A, b, solution) {
+            clearScene();
+            if (n !== 3) {
+                 document.getElementById('solution-display').innerHTML = '<p>La visualización solo es para N=3.</p>';
+                 return;
+            }
+
+            const colors = [0xef4444, 0x3b82f6, 0x10b981];
+            const planeSize = 15;
+            
+            A.forEach((row, i) => {
+                const normal = new THREE.Vector3(row[0], row[1], row[2]);
+                const constant = -b[i];
+                const plane = new THREE.Plane(normal, constant);
+                plane.normalize(); // Crucial
+                
+                const planeHelper = new THREE.PlaneHelper(plane, planeSize, colors[i]);
+                scene.add(planeHelper);
+                planeHelpers.push(planeHelper);
+            });
+            
+            if (solution) {
+                const geom = new THREE.SphereGeometry(0.25, 32, 32);
+                const mat = new THREE.MeshPhongMaterial({ color: 0xfde047, emissive: 0xfacc15 });
+                solutionPoint = new THREE.Mesh(geom, mat);
+                solutionPoint.position.set(solution.x, solution.y, solution.z);
+                scene.add(solutionPoint);
+
+                document.getElementById('solution-display').innerHTML = `
+                    <p class="info-item">x = <strong>${solution.x.toFixed(4)}</strong></p>
+                    <p class="info-item">y = <strong>${solution.y.toFixed(4)}</strong></p>
+                    <p class="info-item">z = <strong>${solution.z.toFixed(4)}</strong></p>
+                `;
+            } else {
+                 document.getElementById('solution-display').innerHTML = '<p style="color: red; font-weight: bold;">El sistema no tiene una solución única (determinante es cero).</p>';
+            }
+        }
+        
+        function visualize() {
+             const { A, b } = readSystemFromUI();
+             if (n === 3) {
+                const solution = solve3x3(A, b);
+                drawSystem(A, b, solution);
+             } else {
+                alert("La visualización 3D solo está disponible para sistemas de 3x3. Puede usar la herramienta anterior para resolver sistemas de mayor tamaño.");
+                clearScene();
+             }
+        }
+
+        // --- CONTROLES Y ANIMACIÓN ---
+        function resetView() {
+            camera.position.set(10, 10, 10);
+            camera.lookAt(0, 0, 0);
+            autoRotate = false;
+            document.getElementById('toggleRotation').textContent = '▶️ Iniciar Rotación';
+            document.getElementById('zoomSlider').value = 25;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (autoRotate) {
+                camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.005);
+                camera.lookAt(0, 0, 0);
+            }
+            renderer.render(scene, camera);
+        }
+        
+        function setupMouseControls() {
+            const container = document.getElementById('canvas-container');
+            let isDragging = false, prevMouseX = 0, prevMouseY = 0;
+            container.onmousedown = (e) => { isDragging = true; prevMouseX = e.clientX; prevMouseY = e.clientY; };
+            container.onmouseup = () => { isDragging = false; };
+            container.onmousemove = (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - prevMouseX;
+                const deltaY = e.clientY - prevMouseY;
+                const rotationSpeed = 0.005;
+
+                camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX * rotationSpeed);
+                const right = new THREE.Vector3().crossVectors(camera.up, camera.position).normalize();
+                camera.position.applyAxisAngle(right, deltaY * rotationSpeed);
+                camera.lookAt(0, 0, 0);
+                
+                prevMouseX = e.clientX; prevMouseY = e.clientY;
+            };
+            container.onwheel = (e) => {
+                e.preventDefault();
+                const zoomFactor = 1 - e.deltaY * 0.001;
+                const newDist = camera.position.length() / zoomFactor;
+                if (newDist > 2 && newDist < 80) camera.position.setLength(newDist);
+            };
+        }
+
+        // --- EVENT LISTENERS ---
+        document.getElementById('applySizeBtn').addEventListener('click', applySizeChange);
+        document.getElementById('visualizeBtn').addEventListener('click', visualize);
+        document.getElementById('restoreBtn').addEventListener('click', restoreExample3x3);
+        document.getElementById('toggleRotation').addEventListener('click', () => {
+            autoRotate = !autoRotate;
+            document.getElementById('toggleRotation').textContent = autoRotate ? '⏸️ Pausar Rotación' : '▶️ Iniciar Rotación';
+        });
+        document.getElementById('zoomSlider').addEventListener('input', (e) => {
+            const dist = 55 - parseFloat(e.target.value);
+            camera.position.setLength(dist);
+        });
+        document.getElementById('resetView').addEventListener('click', resetView);
+
+        // --- INICIO ---
+        init3D();
+        applySizeChange();
+        restoreExample3x3();
+    </script>
+</body>
+</html>

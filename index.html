@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calculadora Matricial Dinámica - CG y SOR</title>
     <style>
-        /* Estilos CSS (sin cambios, se mantienen igual que la versión anterior) */
+        /* Estilos CSS (sin cambios) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Calibri', Arial, sans-serif; background: #f0f0f0; padding: 20px; }
         .excel-container { max-width: 1400px; margin: 0 auto; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden; }
@@ -64,6 +64,7 @@
             <button onclick="calcularMetodos()">▶️ Calcular Métodos</button>
             <button onclick="restaurarEjemplo()" class="tertiary">🔄 Restaurar Ejemplo 5x5</button>
             <button onclick="limpiarResultados()" class="secondary">🧹 Limpiar Resultados</button>
+            <button onclick="window.location.href='./grafica.html'" class="secondary">📊 Ver gráficos</button>
             <div class="size-control">
                 <label for="matrixSizeInput" style="font-weight: bold;">Tamaño N:</label>
                 <input type="number" id="matrixSizeInput" value="5" min="2" max="20" style="width: 70px; padding: 8px;">
@@ -155,6 +156,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             cambiarTamanoMatriz(false);
             restaurarEjemplo();
+            calcularMetodos(); // <<<--- CALCULO AUTOMATICO AL CARGAR
         });
 
         // --- LÓGICA DE LA INTERFAZ (UI) ---
@@ -164,7 +166,7 @@
 
             if (isNaN(newSize) || newSize < 2 || newSize > 20) {
                 alert("Por favor, introduce un tamaño entre 2 y 20.");
-                newSizeInput.value = n; // Revertir al tamaño válido anterior
+                newSizeInput.value = n; 
                 return;
             }
             n = newSize;

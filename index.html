@@ -57,15 +57,14 @@
     <div class="excel-container">
         <div class="excel-header">
             <h1>📊 Calculadora Matricial Dinámica - CG y SOR</h1>
-            <p>Resuelve sistemas de ecuaciones lineales de tamaño N×N.</p>
+            <p>Resuelve sistemas de ecuaciones lineales de tamaño N×N. Ejemplo por defecto: Red de Tráfico Aéreo.</p>
         </div>
         
         <div class="toolbar">
             <button onclick="calcularMetodos()">▶️ Calcular Métodos</button>
             <button onclick="restaurarEjemplo()" class="tertiary">🔄 Restaurar Ejemplo 5x5</button>
             <button onclick="limpiarResultados()" class="secondary">🧹 Limpiar Resultados</button>
-            <a href="./grafica.html" class="secondary">📊 Ver gráficos</a>
-             <div class="size-control">
+            <div class="size-control">
                 <label for="matrixSizeInput" style="font-weight: bold;">Tamaño N:</label>
                 <input type="number" id="matrixSizeInput" value="5" min="2" max="20" style="width: 70px; padding: 8px;">
                 <button onclick="cambiarTamanoMatriz()" class="secondary">Aplicar Tamaño</button>
@@ -116,8 +115,8 @@
         <div class="worksheet" id="worksheet2">
              <div class="section-title">🔶 Método de Sobrerelajación Sucesiva (SOR)</div>
              <table id="tablaSOR">
-                <thead id="tablaSORHead"></thead>
-                <tbody id="cuerpoTablaSOR"></tbody>
+                 <thead id="tablaSORHead"></thead>
+                 <tbody id="cuerpoTablaSOR"></tbody>
              </table>
         </div>
 
@@ -141,15 +140,21 @@
         let resultadoCG = null;
         let resultadoSOR = null;
         
+        // --- DATOS DEL INFORME (DESAFIO 1) ---
+        const airportLabels = ["La Paz (f₁)", "Sta. Cruz (f₂)", "Lima (f₃)", "Bs. Aires (f₄)", "São Paulo (f₅)"];
         const ejemploA_5x5 = [
-            [4, -1, -1, 0, 0], [-1, 4, 0, -1, 0], [-1, 0, 4, 0, -1],
-            [0, -1, 0, 4, -1], [0, 0, -1, -1, 4]
+            [4, -1, -1,  0,  0],
+            [-1, 4,  0, -1,  0],
+            [-1, 0,  4,  0, -1],
+            [0, -1,  0,  4, -1],
+            [0,  0, -1, -1,  4]
         ];
-        const ejemploB_5x5 = [8, 6, 7, 5, 9];
+        const ejemploB_5x5 = [12, 18, 22, 16, 28]; // Vector b del informe
 
         // --- INICIALIZACIÓN ---
         document.addEventListener('DOMContentLoaded', () => {
-            cambiarTamanoMatriz(false); // Inicializa con el tamaño por defecto
+            cambiarTamanoMatriz(false);
+            restaurarEjemplo();
         });
 
         // --- LÓGICA DE LA INTERFAZ (UI) ---
@@ -171,11 +176,14 @@
         }
 
         function generarTablas() {
-            // Tabla de Sistema
             const headSistema = document.getElementById('tablaSistemaHead');
             const bodySistema = document.getElementById('tablaSistemaBody');
+            
             let headHTML = '<tr><th>Ec.</th>';
-            for (let j = 0; j < n; j++) headHTML += `<th>p<sub>${j+1}</sub></th>`;
+            for (let j = 0; j < n; j++) {
+                const label = (n === 5 && airportLabels[j]) ? airportLabels[j] : `x<sub>${j+1}</sub>`;
+                headHTML += `<th>${label}</th>`;
+            }
             headHTML += '<th></th><th>b</th><th>Ecuación Completa</th></tr>';
             headSistema.innerHTML = headHTML;
             
@@ -186,16 +194,18 @@
                     bodyHTML += `<td class="input-cell"><input type="number" id="A-${i}-${j}" oninput="actualizarEcuacion(${i})"></td>`;
                 }
                 bodyHTML += `<td><strong>=</strong></td>`;
-                bodyHTML += `<td class="result-cell"><input type="number" id="b-${i}" oninput="actualizarEcuacion(${i})"></td>`;
+                bodyHTML += `<td class="input-cell"><input type="number" id="b-${i}" oninput="actualizarEcuacion(${i})"></td>`;
                 bodyHTML += `<td id="eq-str-${i}" style="text-align: left; font-family: monospace; white-space: nowrap;"></td></tr>`;
             }
             bodySistema.innerHTML = bodyHTML;
 
-            // Headers para tablas de resultados
             const headCG = document.getElementById('tablaCGHead');
             const headSOR = document.getElementById('tablaSORHead');
             let headResultadosHTML = '<tr><th>Iter</th>';
-            for (let j = 0; j < n; j++) headResultadosHTML += `<th>p<sub>${j+1}</sub></th>`;
+            for (let j = 0; j < n; j++) {
+                const label = (n === 5 && airportLabels[j]) ? airportLabels[j] : `x<sub>${j+1}</sub>`;
+                headResultadosHTML += `<th>${label}</th>`;
+            }
             headResultadosHTML += '<th>Error</th><th>Estado</th></tr>';
             headCG.innerHTML = headResultadosHTML;
             headSOR.innerHTML = headResultadosHTML;
@@ -226,7 +236,7 @@
                 if (val === 0) continue;
                 let sign = val > 0 ? ' + ' : ' - ';
                 let absVal = Math.abs(val);
-                let term = (absVal === 1) ? `p${j+1}` : `${absVal}p${j+1}`;
+                let term = (absVal === 1) ? `f${j+1}` : `${absVal}f${j+1}`;
                 eqStr += (eqStr === "" && val > 0) ? term : (eqStr === "" && val < 0 ? `-${term}` : `${sign}${term}`);
             }
             const bVal = document.getElementById(`b-${rowIndex}`).value || 0;
@@ -249,21 +259,17 @@
                     const input = document.getElementById(`A-${i}-${j}`);
                     const value = parseFloat(input.value);
                     if (isNaN(value)) {
-                        isValid = false;
-                        input.classList.add('error');
+                        isValid = false; input.classList.add('error');
                     } else {
-                        input.classList.remove('error');
-                        A[i][j] = value;
+                        input.classList.remove('error'); A[i][j] = value;
                     }
                 }
                 const b_input = document.getElementById(`b-${i}`);
                 const b_value = parseFloat(b_input.value);
                  if (isNaN(b_value)) {
-                    isValid = false;
-                    b_input.classList.add('error');
+                    isValid = false; b_input.classList.add('error');
                 } else {
-                    b_input.classList.remove('error');
-                    b[i] = b_value;
+                    b_input.classList.remove('error'); b[i] = b_value;
                 }
             }
 
@@ -307,34 +313,31 @@
         const dotProduct = (v1, v2) => v1.reduce((sum, val, i) => sum + val * v2[i], 0);
         const norm = (vec) => Math.sqrt(dotProduct(vec, vec));
         const vecSubtract = (v1, v2) => v1.map((val, i) => val - v2[i]);
-        const vecAdd = (v1, alpha, v2) => v1.map((val, i) => val + alpha * v2[i]);
+        const vecAdd = (v1, v2, alpha = 1) => v1.map((val, i) => val + alpha * v2[i]);
 
-        // --- MÉTODOS NUMÉRICOS (Sin cambios en su lógica interna) ---
+        // --- MÉTODOS NUMÉRICOS ---
         function gradienteConjugado(A, b) {
-            if (!esSimetrica(A)) alert("Advertencia: La matriz no es simétrica. CG podría no converger.");
+            if (!esSimetrica(A)) alert("Advertencia: La matriz no es simétrica. CG podría no converger o dar resultados incorrectos.");
             let x = new Array(n).fill(0);
             let r = vecSubtract(b, matVecMult(A, x));
             let p = [...r];
             let rsold = dotProduct(r, r);
             const tolerance = parseFloat(document.getElementById('tolInput').value);
             const maxIter = parseInt(document.getElementById('maxIterInput').value);
-            const history = [];
+            const history = [{ iteration: 0, x: [...x], error: norm(r) }];
 
-            for (let iter = 0; iter < maxIter; iter++) {
+            for (let iter = 1; iter <= maxIter; iter++) {
                 const Ap = matVecMult(A, p);
-                const pAp = dotProduct(p, Ap);
-                if (Math.abs(pAp) < 1e-10) { // Evitar división por cero
-                     return { solution: x, iterations: iter, error: Math.sqrt(rsold), history, converged: false, errorMsg: "División por cero inminente."};
-                }
-                const alpha = rsold / pAp;
-                x = vecAdd(x, alpha, p);
-                r = vecAdd(r, -alpha, Ap);
+                const alpha = rsold / dotProduct(p, Ap);
+                x = vecAdd(x, p, alpha);
+                r = vecAdd(r, Ap, -alpha);
                 const rsnew = dotProduct(r, r);
                 const error = Math.sqrt(rsnew);
-                history.push({ iteration: iter + 1, x: [...x], error });
+                history.push({ iteration: iter, x: [...x], error });
 
-                if (error < tolerance) return { solution: x, iterations: iter + 1, error, history, converged: true };
-                p = vecAdd(r, rsnew / rsold, p);
+                if (error < tolerance) return { solution: x, iterations: iter, error, history, converged: true };
+                
+                p = vecAdd(r, p, rsnew / rsold);
                 rsold = rsnew;
             }
             return { solution: x, iterations: maxIter, error: Math.sqrt(rsold), history, converged: false };
@@ -345,9 +348,9 @@
             let x = new Array(n).fill(0);
             const tolerance = parseFloat(document.getElementById('tolInput').value);
             const maxIter = parseInt(document.getElementById('maxIterInput').value);
-            const history = [];
+            const history = [{ iteration: 0, x: [...x], error: 0 }];
 
-            for (let iter = 0; iter < maxIter; iter++) {
+            for (let iter = 1; iter <= maxIter; iter++) {
                 let xOld = [...x];
                 for (let i = 0; i < n; i++) {
                     const diag = A[i][i];
@@ -357,8 +360,8 @@
                     x[i] = (1 - omega) * xOld[i] + (omega / diag) * (b[i] - sum1 - sum2);
                 }
                 const error = norm(vecSubtract(x, xOld));
-                history.push({ iteration: iter + 1, x: [...x], error });
-                if (error < tolerance) return { solution: x, iterations: iter + 1, error, history, converged: true };
+                history.push({ iteration: iter, x: [...x], error });
+                if (error < tolerance) return { solution: x, iterations: iter, error, history, converged: true };
             }
             return { solution: x, iterations: maxIter, error: norm(vecSubtract(x,x)), history, converged: false };
         }
@@ -368,8 +371,10 @@
             const sistema = leerSistemaDesdeUI();
             if (!sistema) return;
             actualizarPropiedadesMatriz(sistema.A);
+            
             resultadoCG = gradienteConjugado(sistema.A, sistema.b);
             resultadoSOR = sor(sistema.A, sistema.b);
+            
             mostrarResultados('CG', resultadoCG);
             mostrarResultados('SOR', resultadoSOR);
             mostrarComparacion(sistema.A, sistema.b);
@@ -389,7 +394,7 @@
                 let rowHTML = `<tr><td>${item.iteration}</td>`;
                 item.x.forEach(val => rowHTML += `<td>${val.toFixed(6)}</td>`);
                 rowHTML += `<td class="${converged ? 'result-cell':''}">${item.error.toExponential(4)}</td>`;
-                rowHTML += `<td class="${converged ? 'result-cell':''}">${converged ? '✓ Convergió' : '→ Iterando'}</td></tr>`;
+                rowHTML += `<td class="${converged ? 'result-cell':''}">${converged ? '✓ Convergió' : (item.iteration === 0 ? 'Inicial' : '→ Iterando')}</td></tr>`;
                 tbody.innerHTML += rowHTML;
             });
         }
@@ -399,8 +404,9 @@
             let cgCard = '<h3>🔷 Solución Gradiente Conjugado</h3><div class="stat"><span class="stat-label">Iteraciones:</span><span class="stat-value">' + resultadoCG.iterations + '</span></div>';
             let sorCard = '<h3>🔶 Solución SOR</h3><div class="stat"><span class="stat-label">Iteraciones:</span><span class="stat-value">' + resultadoSOR.iterations + '</span></div>';
             for(let i=0; i<n; i++) {
-                cgCard += `<div class="stat"><span class="stat-label">p<sub>${i+1}</sub>:</span><span class="stat-value">${resultadoCG.solution[i].toFixed(6)}</span></div>`;
-                sorCard += `<div class="stat"><span class="stat-label">p<sub>${i+1}</sub>:</span><span class="stat-value">${resultadoSOR.solution[i].toFixed(6)}</span></div>`;
+                const label = (n === 5 && airportLabels[i]) ? airportLabels[i] : `x<sub>${i+1}</sub>`;
+                cgCard += `<div class="stat"><span class="stat-label">${label}:</span><span class="stat-value">${resultadoCG.solution[i].toFixed(6)}</span></div>`;
+                sorCard += `<div class="stat"><span class="stat-label">${label}:</span><span class="stat-value">${resultadoSOR.solution[i].toFixed(6)}</span></div>`;
             }
             compContainer.innerHTML = `<div class="comparison-card">${cgCard}</div><div class="comparison-card">${sorCard}</div>`;
             
@@ -411,13 +417,13 @@
                 <tr><td>Error Final</td><td>${resultadoCG.error.toExponential(4)}</td><td>${resultadoSOR.error.toExponential(4)}</td><td>${resultadoCG.error < resultadoSOR.error ? '🔷 CG' : '🔶 SOR'}</td></tr>
             `;
 
-            let verifHTML = '<table style="width:100%; margin-top:10px;"><tr><th>Ec.</th><th>Ax (calculado)</th><th>b (original)</th><th>Diferencia</th></tr>';
+            let verifHTML = '<table style="width:100%; margin-top:10px;"><thead><tr><th>Ecuación</th><th>Ax (calculado)</th><th>b (original)</th><th>Diferencia |Ax - b|</th></tr></thead><tbody>';
             const Ax = matVecMult(A, resultadoCG.solution);
             for (let i = 0; i < n; i++) {
                 const diff = Math.abs(Ax[i] - b[i]);
                 verifHTML += `<tr><td>${i+1}</td><td>${Ax[i].toFixed(6)}</td><td>${b[i]}</td><td style="color: ${diff < 1e-4 ? 'green' : 'red'}">${diff.toExponential(2)}</td></tr>`;
             }
-            document.getElementById('verificacion').innerHTML = verifHTML + '</table>';
+            document.getElementById('verificacion').innerHTML = verifHTML + '</tbody></table>';
 
             document.getElementById('conclusiones').innerHTML = `
                 <p><strong>Convergencia:</strong> CG ${resultadoCG.converged ? 'convergió' : 'NO convergió'} en <strong>${resultadoCG.iterations}</strong> iteraciones. SOR ${resultadoSOR.converged ? 'convergió' : 'NO convergió'} en <strong>${resultadoSOR.iterations}</strong> iteraciones.</p>
@@ -436,8 +442,8 @@
             document.getElementById('comparison-container').innerHTML = '';
             document.getElementById('propSimetrica').textContent = '-';
             document.getElementById('propDiagDom').textContent = '-';
-            document.getElementById('propSimetrica').className = 'result-cell';
-            document.getElementById('propDiagDom').className = 'result-cell';
+            document.getElementById('propSimetrica').className = '';
+            document.getElementById('propDiagDom').className = '';
         }
     </script>
 </body>
